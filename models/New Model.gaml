@@ -14,5 +14,16 @@ global {
 experiment PredatorPray type: gui {
 	/** Insert here the definition of the input and output of the model */
 	output {
+		display "Scene" type: opengl{
+			
+		}
+		
+		display "Line Graph" {
+			
+		}
+		
+		display "Bar Graph" {
+			
+		}
 	}
 }
