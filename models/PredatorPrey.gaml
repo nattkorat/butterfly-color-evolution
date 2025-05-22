@@ -14,8 +14,8 @@ global {
 	shape_file Vegetation0_shape_file <- shape_file("../includes/Vegetation.shp");
 	geometry shape <- envelope(Vegetation0_shape_file);
 	
-	int nb_butterfy <- 100;
-	float predator_density_rate <- 0.1;
+	int nb_butterfly <- 100;
+	float predator_density_rate <- 0.05;
 	
 	int black <- int(#black);
 	int gray <- int(#gray);
@@ -33,21 +33,10 @@ global {
 	
 
 	init{
-		create butterfly number: nb_butterfy;
 		create environment from: Vegetation0_shape_file;
+		create butterfly number: nb_butterfly;
+		create predator number: int(predator_density_rate * nb_butterfly);
 		do observe;
-		
-//		write("White "+int(rgb(255, 255, 255)));
-//		write("V_White "+int(rgb(254, 254, 254)));
-//		write("Gray "+ int(#gray));
-//		write("Black " + int (#black));
-		
-		write(white);
-		write(mean_wg);
-		write(gray);
-		write(mean_bg);
-		write(black);
-		
 		
 	}
 	
@@ -57,19 +46,11 @@ global {
 		nb_black <- butterfly count(int(each.my_color) between(black-1, mean_bg));
 		nb_gray <- butterfly count(int(each.my_color) between(mean_bg, mean_wg));
 
-		
-		
-		write("Nb Gray: " + nb_gray);
-		write("Nb White: " + nb_white);
-		write("Nb Black: " + nb_black);
-		
-		write(10 between(-1, 11));
 	}
 	
 	reflex update{
 		do observe;
 	}
-	
 
 }
 
@@ -78,14 +59,16 @@ species animal skills: [moving]{
 	environment target <- nil;
 	float my_speed <- rnd(8#km/#h, 19#km/#h);
 	
-	aspect default{
-		draw circle(3) color: my_color border: #black;
-		write("bla");
-	}
 	
 	reflex get_random_loc when: target = nil {
 		target <- one_of(environment);
 	}
+	
+	aspect default{
+		draw circle(3) color: my_color border: #black;
+		
+	}
+	
 	
 }
 
@@ -93,9 +76,10 @@ species butterfly parent: animal{
 	float spending_time <- rnd(0.5#d, 1#d);
 	bool reached_target <- false;
 	rgb original_color <- my_color;
+	environment current_env <- nil;
 	
 	reflex stay when: reached_target{
-		do wander amplitude: 2.0;
+		do move heading: rnd(0.0, 360.0) speed: my_speed bounds: current_env;
 		spending_time <- spending_time - 5#mn;
 		if (spending_time <= 0){
 			reached_target <- false;
@@ -106,6 +90,7 @@ species butterfly parent: animal{
 	reflex moving when: target != nil and not reached_target{
 		do goto target: target speed: my_speed;
 		if(location = target.location){
+			current_env <- target;
 			target <- nil;
 			reached_target <- true;
 		}
@@ -119,14 +104,99 @@ species butterfly parent: animal{
 		}
 	}
 	
+	reflex reproduce{
+		butterfly my_peer <- one_of(butterfly at_distance(0.5#m));
+		
+		if(my_peer != nil){
+			if(original_color = my_peer.original_color){
+				create butterfly{
+					self.my_color <- myself.original_color;
+				}
+				write("Baby with " + original_color + " butterfly is born ;)");
+			}else{
+				// for the special case of gray with other colors butterfly
+				if (original_color = #gray){
+					if(my_peer.original_color = #black){
+						create butterfly{
+							self.my_color <- flip(0.5)? #gray: #black;
+						}
+					}else{
+						create butterfly{
+							self.my_color <- flip(0.5)? #gray: #white;
+						}
+					}
+					write("Mixing Baby with " + original_color + " butterfly is born ;)");
+				}
+			}
+		}
+		
+	}
+	
 	aspect default {
-		draw reached_target? triangle(5): circle(5) color: my_color border: #red;
+		draw reached_target? triangle(10): circle(5) color: my_color border: #red;
+	}
+}
+
+species predator parent: animal {
+	environment my_environment;
+	
+	init {
+		
+		my_environment <- one_of(environment);
+		location <- any_location_in(my_environment);
+		target <- my_environment;
+	}
+
+	
+	reflex catching {
+		/**
+		 * 1. Check the all butterfly in the area and know only different color from env
+		 * 2. Select one and to to catch it (catching around 50%)
+		 */
+		 list<butterfly> bt_in_region <- butterfly select(
+		 	(each.location overlaps my_environment)
+		 );
+		 
+		 list<butterfly> diff_color_bt;
+		 
+		 if(my_color = #black){ 	
+			 diff_color_bt <- bt_in_region select(not(int((each.my_color)) between(black-1, mean_bg)));
+		 }
+		 if(my_color = #white){ 	
+			 diff_color_bt <- bt_in_region select(not(int((each.my_color)) between(mean_wg, 0)));
+		 }
+		 if(my_color = #gray){ 	
+			 diff_color_bt <- bt_in_region select(not(int((each.my_color)) between(mean_bg, mean_wg)));
+		 }
+		 
+		 list<butterfly> surounding_bt <- diff_color_bt at_distance(10#m); // parameter
+		 
+		 butterfly victim <- one_of(surounding_bt);
+		 
+		 if(victim != nil){
+			location <- victim.location;
+			 ask victim {
+			 	if(flip(0.9)){ // parameter
+			 		write("Oh I got catch ;(");
+			 		do die;
+			 	}
+			 }
+		 }else{
+		 	do wander bounds: my_environment;
+		 }
+		 
+		 
+	}
+
+	
+	aspect default {
+		draw square(10) color: #red;
 	}
 }
 
 species environment{
 	rgb my_color;
-	float season_period <- 10#d;
+	float season_period <- 1#d;
 	
 	init{
 		my_color <- one_of(region_color_list);
@@ -156,13 +226,14 @@ experiment PredatorPray type: gui {
 		display "Scene" background: rgb(102,89,63){
 			species environment;
 			species butterfly;
+			species predator;
 		}
 		
 		display "Butterfly Living" type: 2d{
-			chart "Trending Life of Dinstinct Butterfly Over Time" type: series {
+			chart "Trending Life of Dinstinct Butterfly Over Time" type: series background: #yellow{
 				data "Gray Butterfly" value: nb_gray color: #gray;
 				data "Black Butterfly" value: nb_black color: #black;
-				data "White Butterfly" value: nb_white color: #red;
+				data "White Butterfly" value: nb_white color: #white;
 			}
 		}
 		
