@@ -31,6 +31,14 @@ global {
 	int nb_gray;
 	int nb_black;
 	
+	int c_nb_white;
+	int c_nb_gray;
+	int c_nb_black;
+	
+	int nb_kill_white <- 0;
+	int nb_kill_black <- 0;
+	int nb_kill_gray <- 0;
+	
 	float env_season_period <- 1#d;
 	
 	
@@ -40,6 +48,13 @@ global {
 		create butterfly number: nb_butterfly;
 		create predator number: int(predator_density_rate * nb_butterfly);
 		do observe;
+		c_nb_white <- nb_white;
+		c_nb_black <- nb_black;
+		c_nb_gray <- nb_gray;
+	}
+	
+	reflex stopWhenNoB when: length(butterfly) <= 0{
+		do pause;
 	}
 	
 	
@@ -118,6 +133,13 @@ species butterfly parent: animal{
 			if(original_color = my_peer.original_color){
 				create butterfly{
 					self.my_color <- myself.original_color;
+					if(self.my_color = #gray){
+						c_nb_gray <- c_nb_gray + 1;
+					}else if(self.my_color = #black){
+						c_nb_black <- c_nb_black + 1;
+					}else{
+						c_nb_white <- c_nb_white + 1;
+					}
 				}
 				write("Baby with " + original_color + " butterfly is born ;)");
 			}else{
@@ -126,10 +148,20 @@ species butterfly parent: animal{
 					if(my_peer.original_color = #black){
 						create butterfly{
 							self.my_color <- flip(0.5)? #gray: #black;
+							if(self.my_color = #gray){
+								c_nb_gray <- c_nb_gray + 1;
+							}else{
+								c_nb_black <- c_nb_black + 1;
+							}
 						}
 					}else{
 						create butterfly{
 							self.my_color <- flip(0.5)? #gray: #white;
+							if(self.my_color = #gray){
+								c_nb_gray <- c_nb_gray + 1;
+							}else{
+								c_nb_white <- c_nb_white + 1;
+							}
 						}
 					}
 					write("Mixing Baby with " + original_color + " butterfly is born ;)");
@@ -197,6 +229,14 @@ species predator parent: animal {
 			 ask victim {
 			 	if(flip(0.9)){ // parameter
 			 		myself.nb_eated_butterfly <- myself.nb_eated_butterfly + 1;
+			 		
+			 		if(self.original_color = #gray){
+			 			nb_kill_gray <- nb_kill_gray + 1;
+			 		}else if(self.original_color = #black){
+			 			nb_kill_black <- nb_kill_black + 1;
+			 		}else{
+			 			nb_kill_white <- nb_kill_white + 1;
+			 		}
 			 		
 			 		write("Oh I got catch ;(");
 			 		do die;
@@ -266,6 +306,10 @@ experiment PredatorPray type: gui {
 	parameter "Season Duration" category: "Environment" var:env_season_period <- 1#d min: 0.5#d max: 15#d;
 	
 	output {
+		monitor "Killing White Rate" value: nb_kill_white / c_nb_white;
+		monitor "Killing Black Rate" value: nb_kill_black / c_nb_black;
+		monitor "Killing Gray Rate" value: nb_kill_gray / c_nb_gray;
+		
 		display "Scene" background: rgb(102,89,63){
 			species environment;
 			species butterfly;
