@@ -9,13 +9,16 @@ model PredatorPrey
 
 global {
 	/** Insert the global definitions, variables and actions here */
+	
 	list<rgb> color_list <- [#black, #white, #gray];
 	list<rgb> region_color_list <- [#black, #white, #gray];
 	shape_file Vegetation0_shape_file <- shape_file("../includes/Vegetation.shp");
 	geometry shape <- envelope(Vegetation0_shape_file);
 	
 	int nb_butterfly <- 100;
-	float predator_density_rate <- 0.05;
+	float distance_to_reproduce <- 0.5#m;
+	float predator_density_rate <- 0.1;
+	float sense_to_catch_butterfly <- 1#m;
 	
 	int black <- int(#black);
 	int gray <- int(#gray);
@@ -24,11 +27,11 @@ global {
 	int mean_wg <- int(mean(gray, white));
 	
 	
-	int nb_white <- 0;
+	int nb_white;
+	int nb_gray;
+	int nb_black;
 	
-	int nb_gray <- 0;
-	
-	int nb_black <- 0;
+	float env_season_period <- 1#d;
 	
 	
 
@@ -37,7 +40,6 @@ global {
 		create butterfly number: nb_butterfly;
 		create predator number: int(predator_density_rate * nb_butterfly);
 		do observe;
-		
 	}
 	
 	
@@ -55,6 +57,7 @@ global {
 }
 
 species animal skills: [moving]{
+	float lifetime;
 	rgb my_color <- one_of(color_list);
 	environment target <- nil;
 	float my_speed <- rnd(8#km/#h, 19#km/#h);
@@ -77,6 +80,10 @@ species butterfly parent: animal{
 	bool reached_target <- false;
 	rgb original_color <- my_color;
 	environment current_env <- nil;
+	
+	init {
+		lifetime <- rnd(4#d, 7#d); // few week lifetime
+	}
 	
 	reflex stay when: reached_target{
 		do move heading: rnd(0.0, 360.0) speed: my_speed bounds: current_env;
@@ -105,7 +112,7 @@ species butterfly parent: animal{
 	}
 	
 	reflex reproduce{
-		butterfly my_peer <- one_of(butterfly at_distance(0.5#m));
+		butterfly my_peer <- one_of(butterfly at_distance(distance_to_reproduce)); // parameter
 		
 		if(my_peer != nil){
 			if(original_color = my_peer.original_color){
@@ -132,6 +139,15 @@ species butterfly parent: animal{
 		
 	}
 	
+	reflex aging_and_die {
+		if(lifetime > 0){
+			lifetime <- lifetime - 1#h;
+		}else{
+			write ("Butterfly" + name + " is old and die ;(");
+			do die;
+		}
+	}
+	
 	aspect default {
 		draw reached_target? triangle(10): circle(5) color: my_color border: #red;
 	}
@@ -139,12 +155,15 @@ species butterfly parent: animal{
 
 species predator parent: animal {
 	environment my_environment;
+	int nb_eated_butterfly <- 0;
 	
 	init {
 		
 		my_environment <- one_of(environment);
 		location <- any_location_in(my_environment);
 		target <- my_environment;
+
+		lifetime <- rnd(7#d, 14#d); // few week lifetime
 	}
 
 	
@@ -169,7 +188,7 @@ species predator parent: animal {
 			 diff_color_bt <- bt_in_region select(not(int((each.my_color)) between(mean_bg, mean_wg)));
 		 }
 		 
-		 list<butterfly> surounding_bt <- diff_color_bt at_distance(10#m); // parameter
+		 list<butterfly> surounding_bt <- diff_color_bt at_distance(sense_to_catch_butterfly); // parameter
 		 
 		 butterfly victim <- one_of(surounding_bt);
 		 
@@ -177,15 +196,31 @@ species predator parent: animal {
 			location <- victim.location;
 			 ask victim {
 			 	if(flip(0.9)){ // parameter
+			 		myself.nb_eated_butterfly <- myself.nb_eated_butterfly + 1;
+			 		
 			 		write("Oh I got catch ;(");
 			 		do die;
 			 	}
 			 }
 		 }else{
-		 	do wander bounds: my_environment;
-		 }
+		 	do wander amplitude: 5.0 bounds: my_environment;
+		 } 
 		 
-		 
+	}
+	
+	reflex produce when: nb_eated_butterfly > 5 { // paramter
+		create predator{
+			location <- any_location_in(one_of(environment));
+		}
+		nb_eated_butterfly <- 0;
+	}
+	
+	reflex aging {
+		if(lifetime > 0){
+			lifetime <- lifetime - 1#h;
+		}else{
+			do die;
+		}
 	}
 
 	
@@ -196,7 +231,7 @@ species predator parent: animal {
 
 species environment{
 	rgb my_color;
-	float season_period <- 1#d;
+	float season_period <- env_season_period;
 	
 	init{
 		my_color <- one_of(region_color_list);
@@ -222,6 +257,14 @@ species environment{
 
 experiment PredatorPray type: gui {
 	/** Insert here the definition of the input and output of the model */
+	parameter "Predator Density Rate" category: "Predator" var: predator_density_rate <- 0.1 min:0.1 max: 1.0;
+	parameter "Sense to Catch Butterfly" category: "Predator" var: sense_to_catch_butterfly <- 1#m min: 0.1#m max: 5#m;
+	
+	
+	parameter "Distance of Butterfly to Reproduce" category: "Butterfly" var: distance_to_reproduce <- 0.5#m min: 0.0#m max: 1.5#m;
+	
+	parameter "Season Duration" category: "Environment" var:env_season_period <- 1#d min: 0.5#d max: 15#d;
+	
 	output {
 		display "Scene" background: rgb(102,89,63){
 			species environment;
