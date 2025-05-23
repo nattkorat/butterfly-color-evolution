@@ -19,6 +19,7 @@ global {
 	float distance_to_reproduce <- 0.5#m;
 	float predator_density_rate <- 0.1;
 	float sense_to_catch_butterfly <- 1#m;
+	float killing_rate <- 0.9;
 	
 	int black <- int(#black);
 	int gray <- int(#gray);
@@ -39,7 +40,7 @@ global {
 	int nb_kill_black <- 0;
 	int nb_kill_gray <- 0;
 	
-	float env_season_period <- 1#d;
+	float env_season_period <- 1#h;
 	
 	
 
@@ -227,7 +228,7 @@ species predator parent: animal {
 		 if(victim != nil){
 			location <- victim.location;
 			 ask victim {
-			 	if(flip(0.9)){ // parameter
+			 	if(flip(killing_rate)){ // parameter
 			 		myself.nb_eated_butterfly <- myself.nb_eated_butterfly + 1;
 			 		
 			 		if(self.original_color = #gray){
@@ -243,7 +244,7 @@ species predator parent: animal {
 			 	}
 			 }
 		 }else{
-		 	do wander amplitude: 5.0 bounds: my_environment;
+		 	do goto target: any_location_in(one_of(bt_in_region)) speed: my_speed;
 		 } 
 		 
 	}
@@ -285,7 +286,7 @@ species environment{
 		rgb new_color <- one_of(region_color_list);
 		if(my_color != new_color){
 			my_color <- new_color;
-			season_period <- 10#d;
+			season_period <- env_season_period;
 		}
 	}
 	
@@ -299,11 +300,12 @@ experiment PredatorPray type: gui {
 	/** Insert here the definition of the input and output of the model */
 	parameter "Predator Density Rate" category: "Predator" var: predator_density_rate <- 0.1 min:0.1 max: 1.0;
 	parameter "Sense to Catch Butterfly" category: "Predator" var: sense_to_catch_butterfly <- 1#m min: 0.1#m max: 5#m;
+	parameter "Killing Rate" category: "Predator" var: killing_rate <- 0.9 min: 0.1 max: 1.0;
 	
 	
 	parameter "Distance of Butterfly to Reproduce" category: "Butterfly" var: distance_to_reproduce <- 0.5#m min: 0.0#m max: 1.5#m;
 	
-	parameter "Season Duration" category: "Environment" var:env_season_period <- 1#d min: 0.5#d max: 15#d;
+	parameter "Season Duration" category: "Environment" var:env_season_period <- 1#h min: 0.5#h max: 30#h;
 	
 	output {
 		monitor "Killing White Rate" value: nb_kill_white / c_nb_white;
