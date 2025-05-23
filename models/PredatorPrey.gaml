@@ -1,7 +1,7 @@
 /**
 * Name: PredatorPray
 * Based on the internal skeleton template. 
-* Author: nattkorat
+* Author: nattkorat and ponleurveng
 * Tags: 
 */
 
